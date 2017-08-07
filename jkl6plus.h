@@ -18,12 +18,7 @@ class Cjkl6plusApp : public CWinApp
 public:
     Cjkl6plusApp();
 
-    ULONG_PTR m_gdiplusToken;
-
-    CMutex g_mtx1;
-
-    static unsigned int __stdcall thFun(void *pPM);
-    int mainn();
+    void UpdateMenuItems(UINT uiID, CString strMenu, bool bl);
 
 // Overrides
 public:
@@ -31,13 +26,16 @@ public:
     virtual int ExitInstance();
 
 // Implementation
+protected:
+    ULONG_PTR m_gdiplusToken;
 
 public:
     afx_msg void OnAppAbout();
     afx_msg void OnAppBezier();
     afx_msg void OnAppBSpline();
-    afx_msg void OnAppOffset();
-    afx_msg void OnAppCutback();
+    afx_msg void OnAppOffsetDraw();
+    afx_msg void OnAppDeleteLast();
+    afx_msg void OnAppNew();
     afx_msg void OnAppOpen();
     afx_msg void OnAppSave();
     afx_msg void OnAppSaveAs();

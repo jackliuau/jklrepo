@@ -16,8 +16,9 @@ BEGIN_MESSAGE_MAP(Cjkl6plusApp, CWinApp)
     ON_COMMAND(ID_APP_ABOUT, &Cjkl6plusApp::OnAppAbout)
     ON_COMMAND(ID_APP_BEZIER, &Cjkl6plusApp::OnAppBezier)
     ON_COMMAND(ID_APP_BSPLINE, &Cjkl6plusApp::OnAppBSpline)
-    ON_COMMAND(ID_APP_OFFSET, &Cjkl6plusApp::OnAppOffset)
-    ON_COMMAND(ID_APP_CUTBACK, &Cjkl6plusApp::OnAppCutback)
+    ON_COMMAND(ID_APP_OFFSET_DRAW, &Cjkl6plusApp::OnAppOffsetDraw)
+    ON_COMMAND(ID_APP_DELETE_LAST, &Cjkl6plusApp::OnAppDeleteLast)
+    ON_COMMAND(ID_APP_NEW, &Cjkl6plusApp::OnAppNew)
     ON_COMMAND(ID_APP_OPEN, &Cjkl6plusApp::OnAppOpen)
     ON_COMMAND(ID_APP_SAVE, &Cjkl6plusApp::OnAppSave)
     ON_COMMAND(ID_APP_SAVE_AS, &Cjkl6plusApp::OnAppSaveAs)
@@ -27,85 +28,8 @@ END_MESSAGE_MAP()
 // Cjkl6plusApp construction
 Cjkl6plusApp theApp;
 
-int g_idx;
-long g_num;
-const int THREAD_NUM = 18;
-HANDLE  g_hdls[THREAD_NUM];
-HANDLE  g_hdl_0;
-HANDLE  g_hdl_1;
-CRITICAL_SECTION g_cs_0;
-CRITICAL_SECTION g_cs_1;
-
-void thOutput(const char* szFormat, ...)
-{
-    char szBuff[128];
-    va_list arg;
-    va_start(arg, szFormat);
-    _vsnprintf_s(szBuff, sizeof(szBuff), szFormat, arg);
-    va_end(arg);
-
-    OutputDebugString(szBuff);
-}
-
-unsigned int __stdcall Cjkl6plusApp::thFun(void *pPM)
-{
-    int th_id = *(int*)pPM;
-    SetEvent(g_hdl_0);
-
-    //::WaitForSingleObject(g_hdl_1, INFINITE);
-    //g_mtx1.Lock();
-    EnterCriticalSection(&g_cs_1);
-    DWORD dwTick0 = GetTickCount();
-
-    Sleep(50);
-    g_num++;
-    Sleep(0);
-    thOutput("tick:%d~%d -- th_id:%d, g_num:%d\r\n", dwTick0, GetTickCount(), th_id, g_num);
-
-    //SetEvent(g_hdl_1);
-    //g_mtx1.Unlock();
-    LeaveCriticalSection(&g_cs_1);
-
-    return 0;
-}
-
-int Cjkl6plusApp::mainn()
-{
-    g_hdl_0 = CreateEvent(NULL, FALSE, FALSE, NULL);
-    g_hdl_1 = CreateEvent(NULL, FALSE, FALSE, NULL);
-    InitializeCriticalSection(&g_cs_0);
-    InitializeCriticalSection(&g_cs_1);
-
-
-    //for (int ii = 0; ii < 8; ii++)
-    {
-        g_num = 0;
-        g_idx = 0;
-
-        while (g_idx < THREAD_NUM)
-        {
-            g_hdls[g_idx] = (HANDLE)_beginthreadex(NULL, 0, &Cjkl6plusApp::thFun, &g_idx, 0, NULL);
-            ::WaitForSingleObject(g_hdl_0, INFINITE);
-            //g_mtx0.Lock();
-            g_idx++;
-        }
-
-        WaitForMultipleObjects(THREAD_NUM, g_hdls, TRUE, INFINITE);
-    }
-
-    CloseHandle(g_hdl_0);
-    CloseHandle(g_hdl_1);
-    DeleteCriticalSection(&g_cs_0);
-    DeleteCriticalSection(&g_cs_1);
-
-    return 0;
-}
-
 Cjkl6plusApp::Cjkl6plusApp()
 {
-    // TODO: add construction code here,
-    // Place all significant initialization in InitInstance
-    mainn();
 }
 
 // The one and only Cjkl6plusApp object
@@ -161,24 +85,60 @@ void Cjkl6plusApp::OnAppAbout()
     dlg.DoModal();
 }
 
+void Cjkl6plusApp::UpdateMenuItems(UINT uiID, CString strMenu, bool bl)
+{
+    if (bl)
+        strMenu += "On";
+    else
+        strMenu += "Off";
+
+    ((CMainFrame*)m_pMainWnd)->GetMenu()->ModifyMenu(uiID, MF_BYCOMMAND| MF_STRING, uiID, (LPCTSTR)strMenu);
+
+    m_pMainWnd->DrawMenuBar();
+}
+
 void Cjkl6plusApp::OnAppBezier()
 {
     ((CMainFrame*)m_pMainWnd)->m_ChildView.SwitchBezier();
+
+    UpdateMenuItems(ID_APP_BEZIER, CString("Bezier:"), ((CMainFrame*)m_pMainWnd)->m_ChildView.GetBezierSwitch());
 }
 
 void Cjkl6plusApp::OnAppBSpline()
 {
     ((CMainFrame*)m_pMainWnd)->m_ChildView.SwitchBSpline();
+
+    UpdateMenuItems(ID_APP_BSPLINE, CString("B-Spline:"), ((CMainFrame*)m_pMainWnd)->m_ChildView.GetBSplineSwitch());
 }
 
-void Cjkl6plusApp::OnAppOffset()
+void Cjkl6plusApp::OnAppOffsetDraw()
 {
-    ((CMainFrame*)m_pMainWnd)->m_ChildView.SwitchOffset();
+    ((CMainFrame*)m_pMainWnd)->m_ChildView.SwitchOffsetDraw();
+
+    UpdateMenuItems(ID_APP_OFFSET_DRAW, CString("Offset Draw:"), ((CMainFrame*)m_pMainWnd)->m_ChildView.GetOffsetDrawSwitch());
 }
 
-void Cjkl6plusApp::OnAppCutback()
+void Cjkl6plusApp::OnAppDeleteLast()
 {
-    ((CMainFrame*)m_pMainWnd)->m_ChildView.Cutback();
+    ((CMainFrame*)m_pMainWnd)->m_ChildView.DeleteLast();
+}
+
+void Cjkl6plusApp::OnAppNew()
+{
+    if (((CMainFrame*)m_pMainWnd)->m_ChildView.HasCGSChanged())
+    {
+        if (AfxMessageBox("Do you want to save current change?", MB_YESNO) == IDYES)
+        {
+            OnAppSave();
+        }
+    }
+
+    ((CMainFrame*)m_pMainWnd)->m_ChildView.Init();
+    ((CMainFrame*)m_pMainWnd)->m_ChildView.ReDrawAll();
+
+    UpdateMenuItems(ID_APP_BEZIER, CString("Bezier:"), ((CMainFrame*)m_pMainWnd)->m_ChildView.GetBezierSwitch());
+    UpdateMenuItems(ID_APP_BSPLINE, CString("B-Spline:"), ((CMainFrame*)m_pMainWnd)->m_ChildView.GetBSplineSwitch());
+    UpdateMenuItems(ID_APP_OFFSET_DRAW, CString("Offset Draw:"), ((CMainFrame*)m_pMainWnd)->m_ChildView.GetOffsetDrawSwitch());
 }
 
 void Cjkl6plusApp::OnAppOpen()

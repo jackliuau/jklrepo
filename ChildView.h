@@ -43,19 +43,16 @@ struct _index_
     int _jj_;
 };
 
-//struct CtrlPoint
-//{
-//    PointF pt;
-//};
 
 struct CtrlPoints
 {
     void* powner;
     vector<PointF> vecPts;
 
-    void SetOwner(void* po)
+    void Init(void* po)
     {
         powner = po;
+        vecPts.clear();
     }
 
     void FromString(string& str)
@@ -128,7 +125,6 @@ struct CtrlPoints
             return false;
         }
 
-        //return std::equal(vecPts.begin(), vecPts.begin() + vecPts.size(), cps.vecPts.begin());
         for (int ii=0; ii < (int) vecPts.size(); ii++)
         {
             if (!vecPts[ii].Equals(cps.vecPts[ii]))
@@ -172,9 +168,10 @@ struct CtrlGroups
     CtrlPoints _cps; // currently editing one.
     vector<CtrlPoints> vecGrps;
 
-    void SetOwner(void* po)
+    void Init(void* po)
     {
-        _cps.SetOwner(po);
+        _cps.Init(po);
+        vecGrps.clear();
     }
 
     void FromString(string& str)
@@ -195,7 +192,7 @@ struct CtrlGroups
         while (std::getline(iss, s))
         {
             CtrlPoints cps;
-            cps.SetOwner(_cps.powner);
+            cps.Init(_cps.powner);
             cps.FromString(s);
             if (cps.vecPts.size() > 0)
             {
@@ -310,11 +307,11 @@ public:
     void FillMark(PointF pt, int sz, COLORREF clr);
     void FillMark(CPoint pt, int sz, COLORREF clr);
 
-    void DrawMark(PointF pt, int sz);
-    void DrawMark(CPoint pt, int sz);
+    void DrawMark(PointF pt, int sz, COLORREF clr);
+    void DrawMark(CPoint pt, int sz, COLORREF clr);
 
-    void DrawLine(PointF pt1, PointF pt2, Gdiplus::Color gclr);
-    void DrawLine(CPoint pt1, CPoint pt2, COLORREF clr);
+    void DrawLine(bool bTrulyDrawing, PointF pt1, PointF pt2, Gdiplus::Color gclr);
+    void DrawLine(bool bTrulyDrawing, CPoint pt1, CPoint pt2, COLORREF clr);
 
     static unsigned __stdcall DrawBSpline_auto(void *pvoid);
     void DrawBSpline(CtrlPoints cps, int iOffsetDraw, DWORD dwSleep = 0);
@@ -322,28 +319,33 @@ public:
     static unsigned __stdcall DrawBezier_auto(void *pvoid);
     void DrawBezier(CtrlPoints cps, int iOffsetDraw, DWORD dwSleep = 0);
 
-    void DrawFittingCurve(CtrlPoints& cps, int iOffsetDraw, bool bAutoSelfDraw);
+    void DrawFittingCurve(CtrlPoints& cps, int iOffsetDraw, bool bAutoDraw);
     void DrawCtrlPoints(CtrlPoints cps, bool bEnded);
 
     void ClearClient();
 
-    void ReDrawAll(bool bAutoSelfDraw = false);
+    void ReDrawAll(bool bAutoDraw = false);
 
 public:
+    void Init();
+
     void LoadCGSFromFile(string& strFileName);
     void SaveCGSIntoFile(string& strFileName);
 
+    bool GetBezierSwitch() {return m_bBezierIsOn;}
+    bool GetBSplineSwitch() {return m_bBSplineIsOn;}
+    bool GetOffsetDrawSwitch() {return m_bOffsetDrawIsOn;}
+
     void SwitchBezier();
     void SwitchBSpline();
-    void SwitchOffset();
+    void SwitchOffsetDraw();
 
     string& GetFileName() { return m_strFileName; }
 
     bool HasCGSChanged();
 
-    void Cutback();
+    void DeleteLast();
 
-    void generateCurve();
     double N_(int k, int i, double u);
     double N1(int i, double u);
     double N2(int i, double u);
@@ -355,11 +357,16 @@ protected:
 
     string m_strFileName;
 
-    _index_  m_idxDragging;
+    bool m_bBezierIsOn;
+    bool m_bBSplineIsOn;
+    bool m_bOffsetDrawIsOn;
 
     bool m_bLBtnClickInClient;
-    bool m_bCouldDrag;
+
+    bool m_bDraggable;
     bool m_bDragging;
+
+    _index_  m_idxDragging;
 
     CMutex mtx_pascal_triangle;
     PascalTriangle  pascal_triangle;
@@ -369,13 +376,10 @@ protected:
 
     static const int OFFSET_DRAW_OFFSET = 15;
 
-    ////CRITICAL_SECTION crisec;
     CMutex mtx_gdiplus_graphics;
     Gdiplus::Graphics* m_pGdiplusGraphics;
 
-    bool m_bBezierIsOn;
-    bool m_bBSplineIsOn;
-    bool m_bOffsetIsOn;
+    std::vector<HANDLE> m_vecAutoDrawThreadHandles;
 
 protected:
     virtual BOOL PreCreateWindow(CREATESTRUCT& cs);
@@ -397,4 +401,3 @@ protected:
 
     afx_msg void OnTimer(UINT nIDEvent);
 };
-

@@ -41,13 +41,14 @@ IDR_MAINFRAME           ICON                    "res\\jkl6plus.ico"
 IDR_MAINFRAME MENU 
 BEGIN
     MENUITEM "&About jkl6plus...",          ID_APP_ABOUT
-    MENUITEM "Bezier",                      32777
-    MENUITEM "B-Spline",                    ID_APP_BSPLINE
-    MENUITEM "Offset",                      32779
-    MENUITEM "<<",                          32774
-    MENUITEM "Open",                        32771
-    MENUITEM "Save",                        32772
-    MENUITEM "Save As",                     32773
+    MENUITEM "Bezier:On",                   ID_APP_BEZIER
+    MENUITEM "B-Spline:On",                 ID_APP_BSPLINE
+    MENUITEM "Offset Draw:On",              ID_APP_OFFSET_DRAW
+    MENUITEM "Delete Last",                 ID_APP_DELETE_LAST
+    MENUITEM "New",                         ID_APP_NEW
+    MENUITEM "Open",                        ID_APP_OPEN
+    MENUITEM "Save",                        ID_APP_SAVE
+    MENUITEM "Save As",                     ID_APP_SAVE_AS
     MENUITEM "E&xit [X]",                   ID_APP_EXIT
 END
 
@@ -272,6 +273,14 @@ END
 
 #endif    // APSTUDIO_INVOKED
 
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Cursor
+//
+
+IDC_CURSOR1             CURSOR                  "res\\cursor1.cur"
+IDC_CURSOR2             CURSOR                  "res\\cursor2.cur"
 #endif    // English (Australia) resources
 /////////////////////////////////////////////////////////////////////////////
 
