@@ -18,12 +18,10 @@
 
 CChildView::CChildView()
 {
-    ////InitializeCriticalSection(&crisec);
 }
 
 CChildView::~CChildView()
 {
-    ////DeleteCriticalSection(&crisec);
     if (m_pGdiplusGraphics)
     {
         delete m_pGdiplusGraphics;
@@ -55,18 +53,9 @@ BOOL CChildView::PreCreateWindow(CREATESTRUCT& cs)
     cs.lpszClass = AfxRegisterWndClass(CS_HREDRAW|CS_VREDRAW|CS_DBLCLKS, 
         ::LoadCursor(NULL, IDC_ARROW), reinterpret_cast<HBRUSH>(COLOR_WINDOW+1), NULL);
 
-    m_cgs.SetOwner(this);
-    m_cgs_copy.SetOwner(this);
-
-    m_bLBtnClickInClient = false;
-    m_bCouldDrag = false;
-    m_bDragging = false;
-
     m_pGdiplusGraphics = NULL;
 
-    m_bBezierIsOn = true;
-    m_bBSplineIsOn = true;
-    m_bOffsetIsOn = true;
+    Init();
 
     return TRUE;
 }
@@ -117,7 +106,7 @@ void CChildView::OnMouseMove(UINT nFlags, CPoint point)
     cstr.Format(" JKL6PLUS -- Bezier demo -- %s    [%d, %d]", m_strFileName.c_str(), point.x, point.y);
     (AfxGetMainWnd( ))->SetWindowText(cstr);
 
-    if (m_bCouldDrag)
+    if (m_bDraggable)
         m_bDragging = true;
 
     if (m_bDragging)
@@ -158,10 +147,9 @@ void CChildView::OnMouseMove(UINT nFlags, CPoint point)
         }
     }
 
-    if (m_cgs.IsPointSelectable(point)._jj_ >= 0)
-        SetCursor(LoadCursor(NULL, IDC_SIZEALL));
-    else
-        SetCursor(LoadCursor(NULL, IDC_CROSS));
+    //HCURSOR hCursor = (m_cgs.IsPointSelectable(point)._jj_ >= 0) ? LoadCursorFromFile(".//res//cursor1.cur") : LoadCursorFromFile(".//res//cursor2.cur");
+    HCURSOR hCursor = (m_cgs.IsPointSelectable(point)._jj_ >= 0) ? LoadCursor(NULL, IDC_SIZEALL) : LoadCursor(NULL, IDC_CROSS);
+    SetCursor(hCursor);
 }
 
 BOOL CChildView::OnMouseWheel(UINT nFlags, short iWheel, CPoint point)
@@ -174,21 +162,25 @@ void CChildView::OnLButtonDblClk(UINT nFlags, CPoint point)
 }
 void CChildView::OnLButtonDown(UINT nFlags, CPoint point)
 {
+    SetCursor(LoadCursor(NULL, IDC_CROSS));
+
     m_bLBtnClickInClient = true;
 
     m_idxDragging = m_cgs.IsPointSelectable(point);
     if (m_idxDragging._jj_ >= 0)
     {
-        m_bCouldDrag = true;
+        m_bDraggable = true;
     }
     else 
     {
-        m_bCouldDrag = false;
+        m_bDraggable = false;
     }
 }
 void CChildView::OnLButtonUp(UINT nFlags, CPoint point)
 {
-    m_bCouldDrag = false;
+    SetCursor(LoadCursor(NULL, IDC_SIZEALL));
+
+    m_bDraggable = false;
 
     if (m_bDragging)
     {
@@ -258,13 +250,16 @@ void CChildView::FillMark(CPoint pt, int sz, COLORREF clr)
     this->ReleaseDC(pdc);
 }
 
-void CChildView::DrawMark(PointF pt, int sz)
+void CChildView::DrawMark(PointF pt, int sz, COLORREF clr)
 {
-    DrawMark(CPoint((int)pt.X, (int)pt.Y), sz);
+    DrawMark(CPoint((int)pt.X, (int)pt.Y), sz, clr);
 }
-void CChildView::DrawMark(CPoint pt, int sz)
+void CChildView::DrawMark(CPoint pt, int sz, COLORREF clr)
 {
     CDC* pdc = this->GetDC();
+
+    CPen pen(PS_GEOMETRIC | PS_DOT, 1, clr);
+    CPen* pOldPen = pdc->SelectObject(&pen);
 
     pdc->MoveTo(pt.x - sz, pt.y - sz);
     pdc->LineTo(pt.x + sz, pt.y - sz);
@@ -272,23 +267,29 @@ void CChildView::DrawMark(CPoint pt, int sz)
     pdc->LineTo(pt.x - sz, pt.y + sz);
     pdc->LineTo(pt.x - sz, pt.y - sz);
 
+    pdc->SelectObject(pOldPen);
+
     this->ReleaseDC(pdc);
 }
 
-void CChildView::DrawLine(PointF pt1, PointF pt2, Gdiplus::Color gclr)
+void CChildView::DrawLine(bool bTrulyDrawing, PointF pt1, PointF pt2, Gdiplus::Color gclr)
 {
+    if (!bTrulyDrawing)
+        return;
+
     PointF pts[2] = { pt1, pt2 };
 
     Pen redPen(gclr, 1.6f);
 
-    //EnterCriticalSection(&crisec);
     mtx_gdiplus_graphics.Lock();
     m_pGdiplusGraphics->DrawLines(&redPen, pts, 2);
     mtx_gdiplus_graphics.Unlock();
-    //LeaveCriticalSection(&crisec);
 }
-void CChildView::DrawLine(CPoint pt1, CPoint pt2, COLORREF clr)
+void CChildView::DrawLine(bool bTrulyDrawing, CPoint pt1, CPoint pt2, COLORREF clr)
 {
+    if (!bTrulyDrawing)
+        return;
+
     CDC* pdc = this->GetDC();
 
     CPen pen(PS_GEOMETRIC | PS_DOT, 1, clr);
@@ -303,22 +304,6 @@ void CChildView::DrawLine(CPoint pt1, CPoint pt2, COLORREF clr)
 
     this->ReleaseDC(pdc);
 }
-
-//inline PointF operator*=(PointF pt, double dbl)
-//{
-//    pt.X *= dbl;
-//    pt.Y *= dbl;
-//
-//    return pt;
-//}
-//
-//inline PointF operator+=(PointF pt, PointF pt_)
-//{
-//    pt.X += pt_.X;
-//    pt.Y += pt_.Y;
-//
-//    return pt;
-//}
 
 inline PointF Offset(PointF pt, int offset)
 {
@@ -349,7 +334,7 @@ unsigned __stdcall CChildView::DrawBSpline_auto(void *pvoid)
     CChildView* powner = (CChildView*)(pcps->powner);
 
     DWORD dwSleep = 20 / pcps->vecPts.size();
-    powner->DrawBSpline(*pcps, powner->m_bOffsetIsOn ? powner->OFFSET_DRAW_OFFSET : 0, dwSleep);
+    powner->DrawBSpline(*pcps, powner->m_bOffsetDrawIsOn ? powner->OFFSET_DRAW_OFFSET : 0, dwSleep);
 
     return 0;
 }
@@ -371,32 +356,39 @@ void CChildView::DrawBSpline(CtrlPoints cps, int iOffsetDraw, DWORD dwSleep)
 
     PointF ptFrom = *vecPts.begin();
     if (iOffsetDraw > 0)
-        DrawLine(ptFrom, Offset(ptFrom, iOffsetDraw), clr);
+        DrawLine(m_bOffsetDrawIsOn, ptFrom, Offset(ptFrom, iOffsetDraw), clr);
 
     PointF ptTo = *vecPts.rbegin();
     if (iOffsetDraw > 0)
-        DrawLine(ptTo, Offset(ptTo, iOffsetDraw), clr);
+        DrawLine(m_bOffsetDrawIsOn, ptTo, Offset(ptTo, iOffsetDraw), clr);
+
+    if (cps.IsLinear())
+    {
+        DrawLine(true, ptFrom, ptTo, clr);
+        if (iOffsetDraw > 0)
+            DrawLine(m_bOffsetDrawIsOn, Offset(ptFrom, iOffsetDraw), Offset(ptTo, iOffsetDraw), clr);
+
+        return;
+    }
 
     const int iCurrentK = 3;
-    for (double u = iCurrentK; u <= vecPts.size(); u += 0.1)
+    for (double u = iCurrentK; u <= vecPts.size(); u += 0.05)
     {
+        if (!m_bBSplineIsOn)
+            return;
+
         PointF ptTemp(0, 0);
         for (int i = 0; i < (int)vecPts.size(); i++)
         {
-            PointF pt = vecPts[i];
+            float fN_ = (float) N_(iCurrentK, i, u);
 
-            //pt  *=(pt, N_(iCurrentK, i, u));
-            pt.X *= (float) N_(iCurrentK, i, u);
-            pt.Y *= (float) N_(iCurrentK, i, u);
-
-            //ptTemp +=(ptTemp, pt);
-            ptTemp.X += pt.X;
-            ptTemp.Y += pt.Y;
+            ptTemp.X += (vecPts[i].X * fN_);
+            ptTemp.Y += (vecPts[i].Y * fN_);
         }
 
-        DrawLine(ptFrom, ptTemp, clr);
+        DrawLine(m_bBSplineIsOn, ptFrom, ptTemp, clr);
         if (iOffsetDraw > 0)
-            DrawLine(Offset(ptFrom, iOffsetDraw), Offset(ptTemp, iOffsetDraw), clr);
+            DrawLine(m_bOffsetDrawIsOn, Offset(ptFrom, iOffsetDraw), Offset(ptTemp, iOffsetDraw), clr);
 
         //if (i == TOTALNUMBER / 2)
         {
@@ -410,9 +402,9 @@ void CChildView::DrawBSpline(CtrlPoints cps, int iOffsetDraw, DWORD dwSleep)
 
     ptTo = *vecPts.rbegin();
 
-    DrawLine(ptFrom, ptTo, clr);
+    DrawLine(m_bBSplineIsOn, ptFrom, ptTo, clr);
     if (iOffsetDraw > 0)
-        DrawLine(Offset(ptFrom, iOffsetDraw), Offset(ptTo, iOffsetDraw), clr);
+        DrawLine(m_bOffsetDrawIsOn, Offset(ptFrom, iOffsetDraw), Offset(ptTo, iOffsetDraw), clr);
 }
 
 
@@ -422,7 +414,7 @@ unsigned __stdcall CChildView::DrawBezier_auto(void *pvoid)
     CChildView* powner = (CChildView*)(pcps->powner);
 
     DWORD dwSleep = 20 / pcps->vecPts.size();
-    powner->DrawBezier(*pcps, powner->m_bOffsetIsOn ? powner->OFFSET_DRAW_OFFSET : 0, dwSleep);
+    powner->DrawBezier(*pcps, powner->m_bOffsetDrawIsOn ? powner->OFFSET_DRAW_OFFSET : 0, dwSleep);
 
     return 0;
 }
@@ -439,17 +431,29 @@ void CChildView::DrawBezier(CtrlPoints cps, int iOffsetDraw, DWORD dwSleep)
 
     PointF ptFrom = *cps.vecPts.begin();
     if (iOffsetDraw > 0)
-        DrawLine(ptFrom, Offset(ptFrom, iOffsetDraw), clr);
+        DrawLine(m_bOffsetDrawIsOn, ptFrom, Offset(ptFrom, iOffsetDraw), clr);
 
     PointF ptTo = *cps.vecPts.rbegin();
     if (iOffsetDraw > 0)
-        DrawLine(ptTo, Offset(ptTo, iOffsetDraw), clr);
+        DrawLine(m_bOffsetDrawIsOn, ptTo, Offset(ptTo, iOffsetDraw), clr);
+
+    if (cps.IsLinear())
+    {
+        DrawLine(true, ptFrom, ptTo, clr);
+        if (iOffsetDraw > 0)
+            DrawLine(m_bOffsetDrawIsOn, Offset(ptFrom, iOffsetDraw), Offset(ptTo, iOffsetDraw), clr);
+
+        return;
+    }
 
     const int TOTALNUMBER = 20 * nSize;
     const double STEP = 1.0 / TOTALNUMBER;
 
     for (int i = 1; i < TOTALNUMBER; i++)
     {
+        if (!m_bBezierIsOn)
+            return;
+
         double t = STEP * i;
         double _t = 1.0 - t;
 
@@ -470,9 +474,9 @@ void CChildView::DrawBezier(CtrlPoints cps, int iOffsetDraw, DWORD dwSleep)
         ptTo.X = (float)(xBt + 0.0); // ????? rounding ?????
         ptTo.Y = (float)(yBt + 0.0); // ????? rounding ?????
 
-        DrawLine(ptFrom, ptTo, clr);
+        DrawLine(m_bBezierIsOn, ptFrom, ptTo, clr);
         if (iOffsetDraw > 0)
-            DrawLine(Offset(ptFrom, iOffsetDraw), Offset(ptTo, iOffsetDraw), clr);
+            DrawLine(m_bOffsetDrawIsOn, Offset(ptFrom, iOffsetDraw), Offset(ptTo, iOffsetDraw), clr);
 
         if (i == TOTALNUMBER / 2)
         {
@@ -486,12 +490,12 @@ void CChildView::DrawBezier(CtrlPoints cps, int iOffsetDraw, DWORD dwSleep)
 
     ptTo = *cps.vecPts.rbegin();
 
-    DrawLine(ptFrom, ptTo, clr);
+    DrawLine(m_bBezierIsOn, ptFrom, ptTo, clr);
     if (iOffsetDraw > 0)
-        DrawLine(Offset(ptFrom, iOffsetDraw), Offset(ptTo, iOffsetDraw), clr);
+        DrawLine(m_bOffsetDrawIsOn, Offset(ptFrom, iOffsetDraw), Offset(ptTo, iOffsetDraw), clr);
 }
 
-void CChildView::DrawFittingCurve(CtrlPoints& cps, int iOffsetDraw, bool bAutoSelfDraw)
+void CChildView::DrawFittingCurve(CtrlPoints& cps, int iOffsetDraw, bool bAutoDraw)
 {
     int nSize = cps.vecPts.size();
     if (nSize < 2)
@@ -499,39 +503,19 @@ void CChildView::DrawFittingCurve(CtrlPoints& cps, int iOffsetDraw, bool bAutoSe
         return;
     }
 
-    if (cps.IsLinear())
+    if (bAutoDraw)
     {
-        PointF ptFrom = *cps.vecPts.begin();
-        PointF ptTo = *cps.vecPts.rbegin();
-
-        Gdiplus::Color clr = Gdiplus::Color::GreenYellow;
-
-        DrawLine(ptFrom, ptTo, clr);
-
-        if (iOffsetDraw > 0)
-        {
-            DrawLine(ptFrom, Offset(ptFrom, iOffsetDraw), clr);
-            DrawLine(ptTo, Offset(ptTo, iOffsetDraw), clr);
-            DrawLine(Offset(ptFrom, iOffsetDraw), Offset(ptTo, iOffsetDraw), clr);
-        }
+        if (m_bBezierIsOn)
+            m_vecAutoDrawThreadHandles.push_back((HANDLE)_beginthreadex(NULL, 0, (&CChildView::DrawBezier_auto), &cps, 0, NULL));
+        if (m_bBSplineIsOn)
+            m_vecAutoDrawThreadHandles.push_back((HANDLE)_beginthreadex(NULL, 0, (&CChildView::DrawBSpline_auto), &cps, 0, NULL));
     }
-    else // Not a linear line.
+    else
     {
-        if (bAutoSelfDraw)
-        {
-            //HANDLE hT1 = (HANDLE)_beginthreadex(nullptr, 0, reinterpret_cast<_beginthreadex_proc_type>(&CChildView::DrawBezier_auto), &cps, 0, nullptr);
-            if (m_bBezierIsOn)
-                HANDLE hT1 = (HANDLE)_beginthreadex(NULL, 0, (&CChildView::DrawBezier_auto), &cps, 0, NULL);
-            if (m_bBSplineIsOn)
-                HANDLE hT2 = (HANDLE)_beginthreadex(NULL, 0, (&CChildView::DrawBSpline_auto), &cps, 0, NULL);
-        }
-        else
-        {
-            if (m_bBezierIsOn)
-                DrawBezier(cps, iOffsetDraw);
-            if (m_bBSplineIsOn)
-                DrawBSpline(cps, iOffsetDraw);
-        }
+        if (m_bBezierIsOn)
+            DrawBezier(cps, iOffsetDraw);
+        if (m_bBSplineIsOn)
+            DrawBSpline(cps, iOffsetDraw);
     }
 }
 
@@ -546,22 +530,22 @@ void CChildView::DrawCtrlPoints(CtrlPoints cps, bool bEnded)
 
     vector<PointF>::iterator itPt = cps.vecPts.begin();
 
-    FillMark(*itPt, 2, RGB(50, 50, 250));
-
-    DrawMark(*itPt, 3);
     pdc->MoveTo((int)itPt->X, (int)itPt->Y);
+
+    DrawMark(*itPt, 3, RGB(250, 50, 50));
+    FillMark(*itPt, 2, RGB(50, 250, 50));
 
     for (itPt +=1; itPt != cps.vecPts.end(); itPt++)
     {
-        DrawMark(*itPt, 3);
-
         pdc->LineTo((int)itPt->X, (int)itPt->Y);
         pdc->SetPixel((int)itPt->X, (int)itPt->Y, RGB(255, 0, 0)); // since LineTo() doesn't set the exact pixel.
+
+        DrawMark(*itPt, 3, RGB(250, 50, 50));
     }
 
     if (bEnded)
     {
-        FillMark(*cps.vecPts.rbegin(), 2, RGB(250, 50, 50));
+        FillMark(*cps.vecPts.rbegin(), 2, RGB(50, 50, 250));
     }
 
     this->ReleaseDC(pdc);
@@ -578,8 +562,15 @@ void CChildView::ClearClient()
     this->ReleaseDC(pdc);
 }
 
-void CChildView::ReDrawAll(bool bAutoSelfDraw)
+void CChildView::ReDrawAll(bool bAutoDraw)
 {
+    if (!m_vecAutoDrawThreadHandles.empty())
+    {
+        ::WaitForMultipleObjects(m_vecAutoDrawThreadHandles.size(), &m_vecAutoDrawThreadHandles[0], true, 500);
+
+        m_vecAutoDrawThreadHandles.clear();
+    }
+
     ClearClient();
 
     // draw CtrlPoints first, then FittingCurves, so that there is no FittingCurves being ruined by CtrlPoints.
@@ -591,15 +582,15 @@ void CChildView::ReDrawAll(bool bAutoSelfDraw)
 
     DrawCtrlPoints(m_cgs._cps, false);
 
-    for (vector<CtrlPoints>::iterator itCtrlPoints = m_cgs.vecGrps.begin(); itCtrlPoints != m_cgs.vecGrps.end(); itCtrlPoints++)
+    if (m_bBezierIsOn || m_bBSplineIsOn)
     {
-        DrawFittingCurve(*itCtrlPoints, m_bOffsetIsOn ? OFFSET_DRAW_OFFSET : 0, bAutoSelfDraw);
+        for (vector<CtrlPoints>::iterator itCtrlPoints = m_cgs.vecGrps.begin(); itCtrlPoints != m_cgs.vecGrps.end(); itCtrlPoints++)
+        {
+            DrawFittingCurve(*itCtrlPoints, m_bOffsetDrawIsOn ? OFFSET_DRAW_OFFSET : 0, bAutoDraw);
+        }
+
+        DrawFittingCurve(m_cgs._cps, m_bOffsetDrawIsOn ? 5 : 0, bAutoDraw);
     }
-
-    DrawFittingCurve(m_cgs._cps, m_bOffsetIsOn ? 5 : 0, bAutoSelfDraw);
-
-
-
 
 
 
@@ -615,6 +606,24 @@ void CChildView::ReDrawAll(bool bAutoSelfDraw)
     //graphics.FillEllipse(&SolidBrush(Color(255, 0, 0, 0)), 200, 0, 200, 100);
 }
 
+void CChildView::Init()
+{
+    m_cgs.Init(this);
+    m_cgs_copy.Init(this);
+
+    m_strFileName = "";
+
+    m_bBezierIsOn = true;
+    m_bBSplineIsOn = true;
+    m_bOffsetDrawIsOn = true;
+
+    m_bLBtnClickInClient = false;
+
+    m_bDraggable = false;
+    m_bDragging = false;
+
+    m_vecAutoDrawThreadHandles.clear();
+}
 
 void CChildView::LoadCGSFromFile(string& strFileName)
 {
@@ -660,6 +669,9 @@ void CChildView::SwitchBezier()
 {
     m_bBezierIsOn = !m_bBezierIsOn;
 
+    //if (!m_bBezierIsOn)
+    //    m_bTerminateAllDrawinghread = true;
+
     ReDrawAll(true);
 }
 
@@ -670,9 +682,9 @@ void CChildView::SwitchBSpline()
     ReDrawAll(true);
 }
 
-void CChildView::SwitchOffset()
+void CChildView::SwitchOffsetDraw()
 {
-    m_bOffsetIsOn = !m_bOffsetIsOn;
+    m_bOffsetDrawIsOn = !m_bOffsetDrawIsOn;
 
     ReDrawAll(true);
 }
@@ -682,28 +694,20 @@ bool CChildView::HasCGSChanged()
     return !(m_cgs.IsEqualTo(m_cgs_copy));
 }
 
-void CChildView::Cutback()
+void CChildView::DeleteLast()
 {
     if (m_cgs._cps.vecPts.size() > 0)
     {
-        m_cgs._cps.vecPts.clear();
+        m_cgs._cps.vecPts.erase(m_cgs._cps.vecPts.begin() + m_cgs._cps.vecPts.size() - 1);
     }
-    else
+    else if (m_cgs.vecGrps.size() > 0)
     {
-        if (m_cgs.vecGrps.size() > 0)
-        {
-            m_cgs.vecGrps.erase(m_cgs.vecGrps.begin() + m_cgs.vecGrps.size() - 1);
-        }
+        m_cgs.vecGrps.erase(m_cgs.vecGrps.begin() + m_cgs.vecGrps.size() - 1);
     }
 
     ReDrawAll();
 }
 
-
-
-void CChildView::generateCurve()
-{
-}
 
 double CChildView::N_(int k, int i, double u)
 {
@@ -724,9 +728,9 @@ double CChildView::N1(int i, double u)
 {
     double t = u - i;
 
-    if (0 <= t && t<1)
+    if (0 <= t && t < 1)
         return t;
-    if (1 <= t && t<2)
+    if (1 <= t && t < 2)
         return 2 - t;
     return 0;
 }
@@ -735,11 +739,11 @@ double CChildView::N2(int i, double u)
 {
     double t = u - i;
 
-    if (0 <= t && t<1)
+    if (0 <= t && t < 1)
         return 0.5*t*t;
-    if (1 <= t && t<2)
+    if (1 <= t && t < 2)
         return 3 * t - t*t - 1.5;
-    if (2 <= t && t<3)
+    if (2 <= t && t < 3)
         return 0.5*pow(3 - t, 2);
     return 0;
 }
@@ -749,13 +753,13 @@ double CChildView::N3(int i, double u)
     double t = u - i;
     double a = 1.0 / 6.0;
 
-    if (0 <= t && t<1)
+    if (0 <= t && t < 1)
         return a*t*t*t;
-    if (1 <= t && t<2)
+    if (1 <= t && t < 2)
         return a*(-3 * pow(t - 1, 3) + 3 * pow(t - 1, 2) + 3 * (t - 1) + 1);
-    if (2 <= t && t<3)
+    if (2 <= t && t < 3)
         return a*(3 * pow(t - 2, 3) - 6 * pow(t - 2, 2) + 4);
-    if (3 <= t && t<4)
+    if (3 <= t && t < 4)
         return a*pow(4 - t, 3);
     return 0;
 }
